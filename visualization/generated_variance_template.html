@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root {
+  color-scheme:light dark;
+  --bg:#f6f7fb;--panel:#fff;--text:#18212f;--muted:#607086;
+  --border:#d8dee8;--grid:#e5e9f0;--series:#246bfd;
+  --cursor:#f29d38;--segment:rgba(36,107,253,.2);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#10141b;--panel:#171d27;--text:#edf2f8;--muted:#a8b4c5;
+  --border:#303a49;--grid:#293240;--series:#72a4ff;
+  --cursor:#ffc46b;--segment:rgba(114,164,255,.22);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{width:min(1440px,100%);margin:auto;padding:18px}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+h1{margin:0;font-size:20px}.muted,.value{color:var(--muted)}
+.transport{position:sticky;top:0;z-index:3;display:grid;
+  grid-template-columns:minmax(260px,1fr) auto;gap:12px;align-items:center;
+  margin:14px 0;padding:12px;background:var(--panel);
+  border:1px solid var(--border);border-radius:10px}
+audio{width:100%;min-width:0}
+.controls{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+button,select,input{color:var(--text);background:var(--panel);
+  border:1px solid var(--border);border-radius:7px;min-height:32px}
+button{padding:5px 10px;cursor:pointer}.axis-number{width:78px}
+.timeline{display:grid;gap:10px}
+.track{background:var(--panel);border:1px solid var(--border);
+  border-radius:9px;overflow:hidden}
+.track-head{display:flex;justify-content:space-between;gap:12px;
+  padding:8px 11px 0}.track-title{font-weight:650}
+canvas{display:block;width:100%;height:145px;cursor:crosshair;
+  touch-action:none;user-select:none}
+.help{color:var(--muted);margin:10px 2px 0}
+@media(max-width:720px){main{padding:10px}.transport{
+  position:static;grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>__NAME__</h1><span id="meta" class="muted"></span></header>
+<section class="transport" aria-label="Playback and timeline controls">
+  <div>__VOCAL_AUDIO____ACCOMPANIMENT_AUDIO____PLAYBACK_MESSAGE__</div>
+  <div class="controls">
+    <button id="zoom-in" type="button">Zoom in</button>
+    <button id="zoom-out" type="button">Zoom out</button>
+    <button id="full-view" type="button">Full view</button>
+    <label><input id="follow" type="checkbox" checked> Follow playback</label>
+    __ACCOMPANIMENT_CONTROL__
+    <label>Y axis <select id="axis-track"></select></label>
+    <label>Min <input id="axis-min" class="axis-number" type="number" step="any"></label>
+    <label>Max <input id="axis-max" class="axis-number" type="number" step="any"></label>
+    <button id="axis-apply" type="button">Apply Y</button>
+    <button id="axis-auto" type="button">Auto Y</button>
+  </div>
+</section>
+<section id="timeline" class="timeline" aria-label="Generated variance curves"></section>
+<p class="help">Scroll to zoom, drag to pan, and click to seek. Y-axis limits apply to the selected curve.</p>
+</main>
+<script>
+const DATA=__DATA__;
+const root=document.getElementById("timeline");
+const audio=document.getElementById("audio");
+const accompaniment=document.getElementById("accompaniment");
+const accompanimentVolume=document.getElementById("accompaniment-volume");
+const axisTrack=document.getElementById("axis-track");
+const axisMin=document.getElementById("axis-min");
+const axisMax=document.getElementById("axis-max");
+const style=getComputedStyle(document.documentElement);
+const color=name=>style.getPropertyValue(name).trim();
+const state={start:0,end:DATA.duration,hover:null,cursor:0,dragging:false,
+  moved:false,dragX:0,dragRange:null,yRanges:{}};
+const margin={left:62,right:14,top:10,bottom:25};
+const canvases=[];
+
+for(const curve of DATA.curves){
+  const section=document.createElement("div");
+  section.className="track";
+  section.innerHTML=`<div class="track-head"><span class="track-title">${curve.label}</span><span class="value" data-value="${curve.id}"></span></div><canvas data-track="${curve.id}" aria-label="${curve.label} in ${curve.unit}"></canvas>`;
+  root.appendChild(section);
+  const option=document.createElement("option");
+  option.value=curve.id;option.textContent=curve.label;
+  axisTrack.appendChild(option);
+}
+for(const canvas of root.querySelectorAll("canvas")){
+  canvases.push(canvas);
+  canvas.addEventListener("wheel",onWheel,{passive:false});
+  canvas.addEventListener("pointerdown",onDown);
+  canvas.addEventListener("pointermove",onMove);
+  canvas.addEventListener("pointerup",onUp);
+  canvas.addEventListener("pointercancel",onUp);
+  canvas.addEventListener("pointerleave",()=>{
+    if(!state.dragging){state.hover=null;drawAll();}
+  });
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function span(){return state.end-state.start}
+function playhead(){return state.hover??(audio?audio.currentTime:state.cursor)}
+function plotWidth(c){return c.clientWidth-margin.left-margin.right}
+function timeX(c,t){return margin.left+(t-state.start)/span()*plotWidth(c)}
+function xTime(c,x){
+  return state.start+clamp((x-margin.left)/plotWidth(c),0,1)*span();
+}
+function setRange(start,end){
+  const minimum=Math.min(.1,DATA.duration);
+  const width=clamp(end-start,minimum,DATA.duration);
+  start=clamp(start,0,Math.max(0,DATA.duration-width));
+  state.start=start;state.end=start+width;drawAll();
+}
+function zoom(factor,anchor=(state.start+state.end)/2){
+  const width=clamp(span()*factor,Math.min(.1,DATA.duration),DATA.duration);
+  const ratio=(anchor-state.start)/span();
+  setRange(anchor-width*ratio,anchor+width*(1-ratio));
+}
+function onWheel(event){
+  event.preventDefault();
+  const rect=event.currentTarget.getBoundingClientRect();
+  zoom(event.deltaY<0?.75:1.34,
+    xTime(event.currentTarget,event.clientX-rect.left));
+}
+function onDown(event){
+  event.currentTarget.setPointerCapture(event.pointerId);
+  state.dragging=true;state.moved=false;state.dragX=event.clientX;
+  state.dragRange=[state.start,state.end];
+}
+function onMove(event){
+  const canvas=event.currentTarget;
+  const rect=canvas.getBoundingClientRect();
+  state.hover=xTime(canvas,event.clientX-rect.left);
+  if(state.dragging){
+    const dx=event.clientX-state.dragX;
+    if(Math.abs(dx)>3)state.moved=true;
+    const width=state.dragRange[1]-state.dragRange[0];
+    const shift=-dx/plotWidth(canvas)*width;
+    setRange(state.dragRange[0]+shift,state.dragRange[1]+shift);
+  }else drawAll();
+}
+function onUp(event){
+  if(!state.dragging)return;
+  if(!state.moved){
+    const rect=event.currentTarget.getBoundingClientRect();
+    const time=xTime(event.currentTarget,event.clientX-rect.left);
+    state.cursor=time;if(audio)audio.currentTime=time;
+  }
+  state.dragging=false;state.dragRange=null;drawAll();
+}
+function lowerBound(values,target){
+  let low=0,high=values.length;
+  while(low<high){
+    const middle=(low+high)>>1;
+    if(values[middle]<target)low=middle+1;else high=middle;
+  }
+  return low;
+}
+function rangeFor(times){
+  return[
+    clamp(lowerBound(times,state.start)-1,0,times.length-1),
+    clamp(lowerBound(times,state.end)+1,0,times.length-1)
+  ];
+}
+function curveFor(id){return DATA.curves.find(curve=>curve.id===id)}
+function autoBounds(curve,first,last){
+  let low=Infinity,high=-Infinity;
+  for(let index=first;index<=last;index++){
+    const value=curve.values[index];
+    if(value!==null&&Number.isFinite(value)){
+      low=Math.min(low,value);high=Math.max(high,value);
+    }
+  }
+  if(!Number.isFinite(low))return[0,1];
+  if(low===high)return[low-1,high+1];
+  const pad=(high-low)*.08;return[low-pad,high+pad];
+}
+function yBounds(curve,automatic){
+  const set=state.yRanges[curve.id];
+  if(set)return set;
+  if(axisTrack.value===curve.id){
+    axisMin.placeholder=automatic[0].toFixed(2);
+    axisMax.placeholder=automatic[1].toFixed(2);
+  }
+  return automatic;
+}
+function ticks(low,high,count=4){
+  const raw=Math.max((high-low)/count,Number.EPSILON);
+  const power=10**Math.floor(Math.log10(raw));
+  const normalized=raw/power;
+  const step=(normalized<=1?1:normalized<=2?2:normalized<=5?5:10)*power;
+  const values=[];
+  for(let value=Math.ceil(low/step)*step;
+      value<=high+step*.1;value+=step)values.push(value);
+  return values;
+}
+function formatTime(seconds){
+  const minutes=Math.floor(seconds/60);
+  const value=seconds-minutes*60;
+  return`${minutes}:${value.toFixed(2).padStart(5,"0")}`;
+}
+function prepare(canvas){
+  const ratio=devicePixelRatio||1;
+  const width=canvas.clientWidth,height=canvas.clientHeight;
+  if(canvas.width!==Math.round(width*ratio)||
+     canvas.height!==Math.round(height*ratio)){
+    canvas.width=Math.round(width*ratio);
+    canvas.height=Math.round(height*ratio);
+  }
+  const context=canvas.getContext("2d");
+  context.setTransform(ratio,0,0,ratio,0,0);
+  context.clearRect(0,0,width,height);
+  return[context,width,height];
+}
+function axes(context,canvas,height,low,high,unit){
+  const bottom=height-margin.bottom;
+  context.font="12px system-ui";context.lineWidth=1;
+  context.strokeStyle=color("--grid");context.fillStyle=color("--muted");
+  for(const value of ticks(low,high,3)){
+    const y=margin.top+(high-value)/(high-low)*(bottom-margin.top);
+    context.beginPath();context.moveTo(margin.left,y);
+    context.lineTo(canvas.clientWidth-margin.right,y);context.stroke();
+    context.textAlign="right";context.textBaseline="middle";
+    context.fillText(value.toFixed(Math.abs(value)<10?1:0),margin.left-7,y);
+  }
+  for(const time of ticks(state.start,state.end,7)){
+    const x=timeX(canvas,time);
+    context.beginPath();context.moveTo(x,margin.top);
+    context.lineTo(x,bottom);context.stroke();
+    context.textAlign="center";context.textBaseline="top";
+    context.fillText(formatTime(time),x,bottom+6);
+  }
+  context.save();context.translate(11,(margin.top+bottom)/2);
+  context.rotate(-Math.PI/2);context.textAlign="center";
+  context.fillText(unit,0,0);context.restore();
+}
+function drawSegments(context,canvas,height){
+  context.strokeStyle=color("--segment");context.lineWidth=1;
+  for(const segment of DATA.segments){
+    if(segment.offset<state.start||segment.offset>state.end)continue;
+    const x=timeX(canvas,segment.offset);
+    context.beginPath();context.moveTo(x,margin.top);
+    context.lineTo(x,height-margin.bottom);context.stroke();
+  }
+}
+function drawCurve(canvas,curve){
+  const[context,width,height]=prepare(canvas);
+  const[first,last]=rangeFor(curve.times);
+  const automatic=autoBounds(curve,first,last);
+  const bounds=yBounds(curve,automatic);
+  const low=bounds[0],high=bounds[1];
+  axes(context,canvas,height,low,high,curve.unit);
+  drawSegments(context,canvas,height);
+  const bottom=height-margin.bottom;
+  context.strokeStyle=color("--series");context.lineWidth=1.7;
+  context.beginPath();let open=false;
+  for(let index=first;index<=last;index++){
+    const value=curve.values[index];
+    if(value===null){open=false;continue}
+    const x=timeX(canvas,curve.times[index]);
+    const y=margin.top+(high-value)/(high-low)*(bottom-margin.top);
+    if(open)context.lineTo(x,y);
+    else{context.moveTo(x,y);open=true}
+  }
+  context.stroke();
+  const time=playhead();
+  if(time>=state.start&&time<=state.end){
+    const x=timeX(canvas,time);
+    context.strokeStyle=color("--cursor");context.lineWidth=1.5;
+    context.beginPath();context.moveTo(x,margin.top);
+    context.lineTo(x,bottom);context.stroke();
+  }
+}
+function segmentAt(time){
+  let result=null;
+  for(const segment of DATA.segments){
+    if(segment.offset<=time&&time<=segment.end)result=segment;
+  }
+  return result;
+}
+function updateText(){
+  const time=playhead(),segment=segmentAt(time);
+  document.getElementById("meta").textContent=
+    `${formatTime(DATA.duration)} · ${formatTime(time)}`+
+    `${segment&&segment.text?" · "+segment.text:""}`;
+  for(const curve of DATA.curves){
+    const index=clamp(lowerBound(curve.times,time),0,curve.times.length-1);
+    const value=curve.values[index];
+    document.querySelector(`[data-value="${curve.id}"]`).textContent=
+      `${formatTime(time)} · ${value===null?"gap":
+        value.toFixed(3)+" "+curve.unit}`;
+  }
+}
+function drawAll(){
+  for(const canvas of canvases)
+    drawCurve(canvas,curveFor(canvas.dataset.track));
+  updateText();
+}
+function follow(){
+  if(!audio||audio.paused||
+     !document.getElementById("follow").checked||state.dragging)return;
+  const time=audio.currentTime,width=span();
+  if(width<DATA.duration&&
+     (time>state.end-width*.12||time<state.start))
+    setRange(time-width*.18,time+width*.82);
+}
+function frame(){
+  if(accompaniment&&!audio.paused&&
+     Math.abs(accompaniment.currentTime-audio.currentTime)>.08)
+    accompaniment.currentTime=audio.currentTime;
+  follow();drawAll();
+  if(audio&&!audio.paused)requestAnimationFrame(frame);
+}
+if(audio){
+  audio.addEventListener("play",()=>{
+    if(accompaniment){
+      accompaniment.currentTime=audio.currentTime;
+      accompaniment.playbackRate=audio.playbackRate;
+      accompaniment.play().catch(()=>{});
+    }
+    requestAnimationFrame(frame);
+  });
+  audio.addEventListener("pause",()=>{
+    if(accompaniment)accompaniment.pause();
+  });
+  audio.addEventListener("seeking",()=>{
+    if(accompaniment)accompaniment.currentTime=audio.currentTime;
+  });
+  audio.addEventListener("ratechange",()=>{
+    if(accompaniment)accompaniment.playbackRate=audio.playbackRate;
+  });
+  audio.addEventListener("timeupdate",()=>{
+    if(audio.paused)drawAll();
+  });
+}
+if(accompaniment&&accompanimentVolume){
+  accompaniment.volume=Number(accompanimentVolume.value);
+  accompanimentVolume.addEventListener("input",()=>{
+    accompaniment.volume=Number(accompanimentVolume.value);
+  });
+}
+document.getElementById("zoom-in").addEventListener("click",()=>{
+  zoom(.6,playhead()||span()/2);
+});
+document.getElementById("zoom-out").addEventListener("click",()=>{
+  zoom(1.67,playhead()||span()/2);
+});
+document.getElementById("full-view").addEventListener("click",()=>{
+  setRange(0,DATA.duration);
+});
+document.getElementById("axis-apply").addEventListener("click",()=>{
+  const low=Number(axisMin.value),high=Number(axisMax.value);
+  if(Number.isFinite(low)&&Number.isFinite(high)&&high>low){
+    state.yRanges[axisTrack.value]=[low,high];drawAll();
+  }
+});
+document.getElementById("axis-auto").addEventListener("click",()=>{
+  delete state.yRanges[axisTrack.value];
+  axisMin.value="";axisMax.value="";drawAll();
+});
+axisTrack.addEventListener("change",()=>{
+  const range=state.yRanges[axisTrack.value];
+  axisMin.value=range?range[0]:"";
+  axisMax.value=range?range[1]:"";drawAll();
+});
+new ResizeObserver(drawAll).observe(root);
+drawAll();
+</script>
+</body>
+</html>

@@ -48,3 +48,24 @@ stay synchronized with the vocal, and the page includes an accompaniment volume
 control. Use `--link-audio` only when the HTML will stay on the same machine as
 both WAV files. Use `--no-open` on a headless server. Run
 `python -m visualization --help` for all analysis parameters.
+## Generated variance curves from a DS file
+
+Use the companion command to visualize generated curves already stored in a
+DiffSinger `.ds` file:
+
+```bash
+python -m visualization.ds_visualizer generated.ds \
+  --audio generated.wav \
+  --accompaniment accompaniment.wav \
+  --output generated-variance.html \
+  --no-open
+```
+
+It combines all offset DS segments on one global timeline and displays every
+available generated pitch, energy, breathiness, voicing, and tension curve.
+Segment boundaries and text follow the synchronized playback position. Zoom,
+pan, click-to-seek, portable audio embedding, accompaniment playback, and
+per-curve Y-axis controls work like the WAV analysis visualization.
+
+If `--audio` is omitted, the program looks for a WAV with the same path and stem
+as the DS file. Curves remain usable without audio, but playback is disabled.
