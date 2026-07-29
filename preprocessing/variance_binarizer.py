@@ -549,21 +549,46 @@ class VarianceBinarizer(BaseBinarizer):
 
         use_accompaniment = hparams.get('use_accompaniment', False)
         if use_accompaniment:
-            # extract mel from accompaniment
-            mel_accomp = get_mel_torch(
-                waveform_accomp, samplerate=hparams['audio_sample_rate'],
-                num_mel_bins=hparams['accompaniment_num_mel_bins'],
-                hop_size=hparams['accompaniment_mel_hop_size'], win_size=hparams['accompaniment_mel_win_size'],
-                fft_size=hparams['accompaniment_mel_fft_size'],
-                fmin=hparams['accompaniment_mel_fmin'], fmax=hparams['accompaniment_mel_fmax']
-            ) if waveform_accomp is not None else None
+            # Extract mel from accompaniment.
+            mel_accomp = (
+                get_mel_torch(
+                    waveform_accomp,
+                    samplerate=hparams['audio_sample_rate'],
+                    num_mel_bins=hparams['accompaniment_num_mel_bins'],
+                    hop_size=hparams['accompaniment_mel_hop_size'],
+                    win_size=hparams['accompaniment_mel_win_size'],
+                    fft_size=hparams['accompaniment_mel_fft_size'],
+                    fmin=hparams['accompaniment_mel_fmin'],
+                    fmax=hparams['accompaniment_mel_fmax'],
+                )
+                if waveform_accomp is not None
+                else None
+            )
+
+            if mel_accomp is not None:
+                length_diff = mel_accomp.shape[0] - length
+
+                assert abs(length_diff) <= 1, (
+                    f"mel_accomp length differs too much: "
+                    f"mel_accomp={mel_accomp.shape[0]}, expected={length}"
+                )
+
+                if length_diff < 0:
+                    # Pad at the back by repeating the last mel frame.
+                    padding = np.repeat(mel_accomp[-1:], -length_diff, axis=0)
+                    mel_accomp = np.concatenate([mel_accomp, padding], axis=0)
+
+                elif length_diff > 0:
+                    # Cut excess frames from the back.
+                    mel_accomp = mel_accomp[:length]
+
+                assert mel_accomp.shape[0] == length
+                assert mel_accomp.shape[1] == hparams['accompaniment_num_mel_bins']
 
             processed_input['mel_accomp'] = mel_accomp
 
-            assert mel_accomp.shape[0] == length
-            assert mel_accomp.shape[1] == hparams['accompaniment_num_mel_bins']
-
         return processed_input
+
 
     def arrange_data_augmentation(self, data_iterator):
         return {}
