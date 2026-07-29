@@ -1,0 +1,358 @@
+base_config:
+  - configs/variance.yaml
+
+dictionaries:
+  zh: dictionaries/opencpop-extension.txt
+extra_phonemes: []
+merged_phoneme_groups: []
+
+datasets:
+  - raw_data_dir: data/opencpop_normalized_accompaniment/raw
+    speaker: speaker1
+    spk_id: 0
+    language: zh
+    test_prefixes:
+      - '2001_001'
+      - '2001_002'
+      - '2001_003'
+      - '2001_004'
+      - '2001_005'
+      - '2001_006'
+      - '2001_007'
+      - '2001_008'
+      - '2001_009'
+      - '2001_010'
+      - '2001_011'
+      - '2001_012'
+      - '2001_013'
+      - '2001_014'
+      - '2001_015'
+      - '2001_016'
+      - '2001_017'
+      - '2001_018'
+      - '2001_019'
+      - '2001_020'
+      - '2001_021'
+      - '2001_022'
+      - '2001_023'
+      - '2001_024'
+      - '2001_025'
+      - '2001_026'
+      - '2001_027'
+      - '2001_028'
+      - '2001_029'
+      - '2001_030'
+      - '2001_031'
+      - '2001_032'
+      - '2001_033'
+      - '2001_034'
+      - '2001_035'
+      - '2001_036'
+      - '2001_037'
+      - '2001_038'
+      - '2021_001'
+      - '2021_002'
+      - '2021_003'
+      - '2021_004'
+      - '2021_005'
+      - '2021_006'
+      - '2021_007'
+      - '2021_008'
+      - '2021_009'
+      - '2021_010'
+      - '2021_011'
+      - '2021_012'
+      - '2021_013'
+      - '2021_014'
+      - '2021_015'
+      - '2021_016'
+      - '2021_017'
+      - '2021_018'
+      - '2021_019'
+      - '2021_020'
+      - '2021_021'
+      - '2021_022'
+      - '2021_023'
+      - '2021_024'
+      - '2021_025'
+      - '2021_026'
+      - '2021_027'
+      - '2021_028'
+      - '2021_029'
+      - '2021_030'
+      - '2021_031'
+      - '2021_032'
+      - '2021_033'
+      - '2021_034'
+      - '2021_035'
+      - '2021_036'
+      - '2021_037'
+      - '2021_038'
+      - '2041_001'
+      - '2041_002'
+      - '2041_003'
+      - '2041_004'
+      - '2041_005'
+      - '2041_006'
+      - '2041_007'
+      - '2041_008'
+      - '2041_009'
+      - '2041_010'
+      - '2041_011'
+      - '2041_012'
+      - '2041_013'
+      - '2041_014'
+      - '2041_015'
+      - '2041_016'
+      - '2041_017'
+      - '2041_018'
+      - '2041_019'
+      - '2041_020'
+      - '2041_021'
+      - '2041_022'
+      - '2041_023'
+      - '2041_024'
+      - '2041_025'
+      - '2041_026'
+      - '2041_027'
+      - '2051_001'
+      - '2051_002'
+      - '2051_003'
+      - '2051_004'
+      - '2051_005'
+      - '2051_006'
+      - '2051_007'
+      - '2051_008'
+      - '2051_009'
+      - '2051_010'
+      - '2051_011'
+      - '2051_012'
+      - '2051_013'
+      - '2051_014'
+      - '2051_015'
+      - '2051_016'
+      - '2051_017'
+      - '2051_018'
+      - '2051_019'
+      - '2051_020'
+      - '2051_021'
+      - '2051_022'
+      - '2051_023'
+      - '2051_024'
+      - '2051_025'
+      - '2051_026'
+      - '2051_027'
+      - '2051_028'
+      - '2051_029'
+      - '2051_030'
+      - '2051_031'
+      - '2061_001'
+      - '2061_002'
+      - '2061_003'
+      - '2061_004'
+      - '2061_005'
+      - '2061_006'
+      - '2061_007'
+      - '2061_008'
+      - '2061_009'
+      - '2061_010'
+      - '2061_011'
+      - '2061_012'
+      - '2061_013'
+      - '2061_014'
+      - '2061_015'
+      - '2061_016'
+      - '2061_017'
+      - '2061_018'
+      - '2061_019'
+      - '2061_020'
+      - '2061_021'
+      - '2061_022'
+      - '2061_023'
+      - '2061_024'
+      - '2061_025'
+      - '2061_026'
+      - '2061_027'
+      - '2061_028'
+      - '2061_029'
+      - '2061_030'
+      - '2061_031'
+      - '2061_032'
+      - '2061_033'
+      - '2061_034'
+      - '2061_035'
+      - '2061_036'
+      - '2061_037'
+      - '2081_001'
+      - '2081_002'
+      - '2081_003'
+      - '2081_004'
+      - '2081_005'
+      - '2081_006'
+      - '2081_007'
+      - '2081_008'
+      - '2081_009'
+      - '2081_010'
+      - '2081_011'
+      - '2081_012'
+      - '2081_013'
+      - '2081_014'
+      - '2081_015'
+      - '2081_016'
+      - '2081_017'
+      - '2081_018'
+      - '2081_019'
+      - '2081_020'
+      - '2081_021'
+      - '2081_022'
+      - '2081_023'
+      - '2081_024'
+      - '2081_025'
+      - '2081_026'
+      - '2081_027'
+      - '2081_028'
+      - '2081_029'
+      - '2081_030'
+      - '2081_031'
+      - '2081_032'
+      - '2086_001'
+      - '2086_002'
+      - '2086_003'
+      - '2086_004'
+      - '2086_005'
+      - '2086_006'
+      - '2086_007'
+      - '2086_008'
+      - '2086_009'
+      - '2086_010'
+      - '2086_011'
+      - '2086_012'
+      - '2086_013'
+      - '2086_014'
+      - '2086_015'
+      - '2086_016'
+      - '2086_017'
+      - '2086_018'
+      - '2086_019'
+      - '2086_020'
+      - '2086_021'
+      - '2086_022'
+      - '2086_023'
+      - '2086_024'
+      - '2086_025'
+      - '2086_026'
+      - '2086_027'
+      - '2086_028'
+      - '2086_029'
+      - '2086_030'
+      - '2086_031'
+      - '2086_032'
+      - '2086_033'
+      - '2086_034'
+      - '2086_035'
+      - '2086_036'
+      - '2086_037'
+      - '2086_038'
+
+
+binary_data_dir: data/opencpop_normalized_accompaniment/binary
+binarization_args:
+  num_workers: 0
+pe: rmvpe
+pe_ckpt: 'checkpoints/rmvpe/model.pt'
+hnsep: vr
+hnsep_ckpt: 'checkpoints/vr/model.pt'
+vocoder: NsfHifiGAN
+vocoder_ckpt: checkpoints/nsf_hifigan_44.1k_hop512_128bin_2024.02/model.ckpt
+
+use_lang_id: false
+num_lang: 1
+use_spk_id: false
+num_spk: 1
+
+# NOTICE: before enabling variance embeddings, please read the docs at
+# https://github.com/openvpi/DiffSinger/tree/main/docs/BestPractices.md#choosing-variance-parameters
+use_energy_embed: false
+use_breathiness_embed: true
+use_voicing_embed: true
+use_tension_embed: true
+
+use_accompaniment: true
+
+accompaniment_num_mel_bins: 128
+accompaniment_mel_fmin: 40
+accompaniment_mel_fmax: 16000
+accompaniment_mel_hop_size: 512
+accompaniment_mel_win_size: 2048
+accompaniment_mel_fft_size: 2048
+
+use_key_shift_embed: true
+use_speed_embed: true
+
+augmentation_args:
+  random_pitch_shifting:
+    enabled: true
+    range: [-5., 5.]
+    scale: 0.75
+  fixed_pitch_shifting:
+    enabled: false
+    targets: [-5., 5.]
+    scale: 0.5
+  random_time_stretching:
+    enabled: true
+    range: [0.5, 2.]
+    scale: 0.75
+
+# diffusion and shallow diffusion
+diffusion_type: reflow
+enc_ffn_kernel_size: 3
+use_rope: true
+rope_interleaved: false
+use_shallow_diffusion: true
+T_start: 0.4
+T_start_infer: 0.4
+K_step: 300
+K_step_infer: 300
+backbone_type: 'lynxnet'
+backbone_args:
+  num_channels: 1024
+  num_layers: 6
+  kernel_size: 31
+  dropout_rate: 0.0
+  strong_cond: true
+#backbone_type: 'wavenet'
+#backbone_args:
+#  num_channels: 512
+#  num_layers: 20
+#  dilation_cycle_length: 4
+shallow_diffusion_args:
+  train_aux_decoder: true
+  train_diffusion: true
+  val_gt_start: false
+  aux_decoder_arch: convnext
+  aux_decoder_args:
+    num_channels: 512
+    num_layers: 6
+    kernel_size: 7
+    dropout_rate: 0.1
+  aux_decoder_grad: 0.1
+lambda_aux_mel_loss: 0.2
+
+optimizer_args:
+  lr: 0.0006
+lr_scheduler_args:
+  scheduler_cls: torch.optim.lr_scheduler.StepLR
+  step_size: 10000
+  gamma: 0.75
+max_batch_frames: 50000
+max_batch_size: 64
+max_updates: 160000
+
+num_valid_plots: 10
+val_with_vocoder: true
+val_check_interval: 2000
+num_ckpt_keep: 5
+permanent_ckpt_start: 120000
+permanent_ckpt_interval: 20000
+pl_trainer_devices: 'auto'
+pl_trainer_precision: '16-mixed'

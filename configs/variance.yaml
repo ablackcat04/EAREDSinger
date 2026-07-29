@@ -139,3 +139,12 @@ finetune_strict_shapes: true
 
 freezing_enabled: false
 frozen_params: []
+
+use_accompaniment: false
+
+accompaniment_num_mel_bins: 128
+accompaniment_mel_fmin: 40
+accompaniment_mel_fmax: 16000
+accompaniment_mel_hop_size: 512
+accompaniment_mel_win_size: 2048
+accompaniment_mel_fft_size: 2048

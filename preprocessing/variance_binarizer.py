@@ -19,7 +19,7 @@ from utils.binarizer_utils import (
     get_energy_librosa,
     get_breathiness,
     get_voicing,
-    get_tension_base_harmonic,
+    get_tension_base_harmonic, get_mel_torch,
 )
 from utils.decomposed_waveform import DecomposedWaveform
 from utils.hparams import hparams
@@ -48,6 +48,7 @@ VARIANCE_ITEM_ATTRIBUTES = [
     'breathiness',  # frame-level RMS of aperiodic parts (dB), float32[T_s,]
     'voicing',  # frame-level RMS of harmonic parts (dB), float32[T_s,]
     'tension',  # frame-level tension (logit), float32[T_s,]
+    'mel_accomp', # mel-spectrogram bins of corresponding accompaniment
 ]
 WAV_CANDIDATE_EXTENSIONS = ['.wav', '.flac']
 DS_INDEX_SEP = '#'
@@ -143,6 +144,22 @@ class VarianceBinarizer(BaseBinarizer):
                         f'If you are using DS files instead of waveform files, please set \'prefer_ds\' to true.'
                     )
 
+
+                wav_fn_accomp = None
+                use_accompaniment = hparams.get('use_accompaniment', False)
+                if use_accompaniment:
+                    for ext in WAV_CANDIDATE_EXTENSIONS:
+                        candidate_fn_accomp = raw_data_dir / 'accompaniments' / f'{item_name}{ext}'
+                        if candidate_fn_accomp.exists():
+                            wav_fn_accomp = candidate_fn_accomp
+                            break
+                    if wav_fn_accomp is None:
+                        raise FileNotFoundError(
+                            f'Accompaniment waveform file not found for item \'{item_name}\'. '
+                            f'Candidate extensions: {WAV_CANDIDATE_EXTENSIONS}\n'
+                        )
+
+
                 temp_dict = {
                     'ds_idx': item_idx,
                     'spk_id': self.spk_map[spk],
@@ -150,6 +167,7 @@ class VarianceBinarizer(BaseBinarizer):
                     'language_id': self.lang_map[lang],
                     'language_name': lang,
                     'wav_fn': str(wav_fn) if wav_fn is not None else None,
+                    'wav_fn_accomp': str(wav_fn_accomp) if wav_fn_accomp is not None else None,
                     'lang_seq': [
                         (
                             self.lang_map[lang if '/' not in p else p.split('/', maxsplit=1)[0]]
@@ -193,6 +211,7 @@ class VarianceBinarizer(BaseBinarizer):
                             assert all(g in self.glide_map for g in note_glide), \
                                 f'Invalid glide type found in \'{item_name}\'.'
                         temp_dict['note_glide'] = note_glide
+
 
                 meta_data_dict[f'{ds_id}:{item_name}'] = temp_dict
 
@@ -306,6 +325,11 @@ class VarianceBinarizer(BaseBinarizer):
             waveform, _ = librosa.load(meta_data['wav_fn'], sr=hparams['audio_sample_rate'], mono=True)
         else:
             waveform = None
+
+        if meta_data['wav_fn_accomp'] is not None:
+            waveform_accomp, _ = librosa.load(meta_data['wav_fn_accomp'], sr=hparams['audio_sample_rate'], mono=True)
+        else:
+            waveform_accomp = None
 
         global pitch_extractor
         if pitch_extractor is None:
@@ -522,6 +546,22 @@ class VarianceBinarizer(BaseBinarizer):
                 tension = tension_smooth(torch.from_numpy(tension).to(self.device)[None])[0].cpu().numpy()
 
             processed_input['tension'] = tension
+
+        use_accompaniment = hparams.get('use_accompaniment', False)
+        if use_accompaniment:
+            # extract mel from accompaniment
+            mel_accomp = get_mel_torch(
+                waveform_accomp, samplerate=hparams['audio_sample_rate'],
+                num_mel_bins=hparams['accompaniment_num_mel_bins'],
+                hop_size=hparams['accompaniment_mel_hop_size'], win_size=hparams['accompaniment_mel_win_size'],
+                fft_size=hparams['accompaniment_mel_fft_size'],
+                fmin=hparams['accompaniment_mel_fmin'], fmax=hparams['accompaniment_mel_fmax']
+            ) if waveform_accomp is not None else None
+
+            processed_input['mel_accomp'] = mel_accomp
+
+            assert mel_accomp.shape[0] == length
+            assert mel_accomp.shape[1] == hparams['accompaniment_num_mel_bins']
 
         return processed_input
 
