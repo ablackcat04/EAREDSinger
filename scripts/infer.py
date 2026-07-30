@@ -289,6 +289,13 @@ def acoustic(
     required=False,
     help='Diffusion sampling steps'
 )
+@click.option(
+    '--accompaniment', type=click.Path(
+        file_okay=False, dir_okay=True, path_type=pathlib.Path
+    ),
+    required=False,
+    help='The accompaniment dir for variance infer'
+)
 def variance(
         proj: pathlib.Path,
         exp: str,
@@ -302,7 +309,8 @@ def variance(
         key: int,
         expr: float,
         seed: int,
-        steps: int
+        steps: int,
+        accompaniment: pathlib.Path
 ):
     name = proj.stem if not title else title
     if out is None:
@@ -371,7 +379,8 @@ def variance(
     try:
         infer_ins.run_inference(
             params, out_dir=out, title=name,
-            num_runs=num, seed=seed
+            num_runs=num, seed=seed,
+            accompaniment_dir=accompaniment
         )
     except KeyboardInterrupt:
         exit(-1)

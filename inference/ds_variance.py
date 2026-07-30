@@ -24,6 +24,7 @@ from utils.hparams import hparams
 from utils.infer_utils import resample_align_curve
 from utils.phoneme_utils import load_phoneme_dictionary
 from utils.pitch_utils import interp_f0
+from utils.binarizer_utils import get_mel_torch
 
 
 class DiffSingerVarianceInfer(BaseSVSInfer):
@@ -75,6 +76,9 @@ class DiffSingerVarianceInfer(BaseSVSInfer):
         self.global_predict_pitch = 'pitch' in predictions and hparams['predict_pitch']
         self.variance_prediction_set = predictions.intersection(VARIANCE_CHECKLIST)
         self.global_predict_variances = len(self.variance_prediction_set) > 0
+
+        self.use_accompaniment = hparams.get('use_accompaniment', False)
+
 
     def build_model(self, ckpt_steps=None):
         model = DiffSingerVariance(
@@ -311,6 +315,11 @@ class DiffSingerVarianceInfer(BaseSVSInfer):
         expr = sample.get('expr')
         pitch = sample.get('pitch')
 
+        if self.use_accompaniment:
+            mel_accomp = sample.get('mel_accomp')
+        else:
+            mel_accomp = None
+
         if hparams['use_spk_id']:
             ph_spk_mix_id = sample['ph_spk_mix_id']
             ph_spk_mix_value = sample['ph_spk_mix_value']
@@ -332,6 +341,7 @@ class DiffSingerVarianceInfer(BaseSVSInfer):
             midi=midi, ph2word=ph2word, word_dur=word_dur, ph_dur=ph_dur, mel2ph=mel2ph,
             note_midi=note_midi, note_rest=note_rest, note_dur=note_dur, note_glide=note_glide, mel2note=mel2note,
             base_pitch=base_pitch, pitch=pitch, pitch_expr=expr,
+            mel_accomp=mel_accomp,
             ph_spk_mix_embed=ph_spk_mix_embed, spk_mix_embed=spk_mix_embed,
             infer=True
         )
@@ -362,7 +372,8 @@ class DiffSingerVarianceInfer(BaseSVSInfer):
             out_dir: pathlib.Path = None,
             title: str = None,
             num_runs: int = 1,
-            seed: int = -1
+            seed: int = -1,
+            accompaniment_dir: pathlib.Path = None
     ):
         batches = []
         predictor_flags: List[Tuple[bool, bool, bool]] = []
@@ -392,6 +403,50 @@ class DiffSingerVarianceInfer(BaseSVSInfer):
                 load_dur=not flag[0] and (flag[1] or flag[2]),
                 load_pitch=not flag[1] and flag[2]
             ))
+
+        if self.use_accompaniment:
+            accompaniment_dir = pathlib.Path(accompaniment_dir)
+
+            for idx, batch in enumerate(batches):
+                wav_path = accompaniment_dir / f'{idx}.wav'
+
+                if not wav_path.is_file():
+                    raise FileNotFoundError(f'Missing accompaniment: {wav_path}')
+
+                waveform_accomp, _ = librosa.load(
+                    wav_path,
+                    sr=hparams['audio_sample_rate'],
+                    mono=True
+                )
+
+                mel_accomp = get_mel_torch(
+                    waveform_accomp,
+                    samplerate=hparams['audio_sample_rate'],
+                    num_mel_bins=hparams['accompaniment_num_mel_bins'],
+                    hop_size=hparams['accompaniment_mel_hop_size'],
+                    win_size=hparams['accompaniment_mel_win_size'],
+                    fft_size=hparams['accompaniment_mel_fft_size'],
+                    fmin=hparams['accompaniment_mel_fmin'],
+                    fmax=hparams['accompaniment_mel_fmax'],
+                    device=self.device
+                )
+
+                # Align accompaniment mel length with the corresponding batch.
+                target_length = batch['mel2note'].shape[1]
+
+                if mel_accomp.shape[0] < target_length:
+                    padding = np.repeat(
+                        mel_accomp[-1:],
+                        target_length - mel_accomp.shape[0],
+                        axis=0
+                    )
+                    mel_accomp = np.concatenate([mel_accomp, padding], axis=0)
+                else:
+                    mel_accomp = mel_accomp[:target_length]
+
+                batch['mel_accomp'] = torch.from_numpy(
+                    mel_accomp.astype(np.float32)
+                ).unsqueeze(0).to(self.device)
 
         out_dir.mkdir(parents=True, exist_ok=True)
         for i in range(num_runs):
