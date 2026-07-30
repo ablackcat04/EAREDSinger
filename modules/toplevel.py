@@ -132,6 +132,7 @@ class DiffSingerVariance(CategorizedModule, ParameterAdaptorModule):
         ParameterAdaptorModule.__init__(self)
         self.predict_dur = hparams['predict_dur']
         self.predict_pitch = hparams['predict_pitch']
+        self.use_accompaniment = hparams.get('use_accompaniment', False)
 
         self.use_spk_id = hparams['use_spk_id']
         if self.use_spk_id:
@@ -195,10 +196,20 @@ class DiffSingerVariance(CategorizedModule, ParameterAdaptorModule):
             else:
                 raise NotImplementedError(self.diffusion_type)
 
+        if self.use_accompaniment:
+            self.accompaniment_num_mel_bins = hparams[
+                'accompaniment_num_mel_bins'
+            ]
+            self.accompaniment_proj = Linear(
+                self.accompaniment_num_mel_bins,
+                hparams['hidden_size']
+            )
+
     def forward(
             self, txt_tokens, midi, ph2word, ph_dur=None, word_dur=None, mel2ph=None,
             note_midi=None, note_rest=None, note_dur=None, note_glide=None, mel2note=None,
             base_pitch=None, pitch=None, pitch_expr=None, pitch_retake=None,
+            mel_accomp=None,
             variance_retake: Dict[str, Tensor] = None,
             spk_id=None, languages=None,
             infer=True, **kwargs
@@ -232,6 +243,24 @@ class DiffSingerVariance(CategorizedModule, ParameterAdaptorModule):
         encoder_out = F.pad(encoder_out, [0, 0, 1, 0])
         mel2ph_ = mel2ph[..., None].repeat([1, 1, hparams['hidden_size']])
         condition = torch.gather(encoder_out, 1, mel2ph_)
+
+        if self.use_accompaniment:
+            if mel_accomp is None:
+                raise ValueError(
+                    'mel_accomp is required when use_accompaniment is enabled.'
+                )
+            if mel_accomp.shape[:2] != condition.shape[:2]:
+                raise ValueError(
+                    f'Frame shape mismatch: mel_accomp={mel_accomp.shape[:2]}, '
+                    f'condition={condition.shape[:2]}'
+                )
+            if mel_accomp.shape[2] != self.accompaniment_num_mel_bins:
+                raise ValueError(
+                    f'Expected {self.accompaniment_num_mel_bins} accompaniment '
+                    f'mel bins, but received {mel_accomp.shape[2]}.'
+                )
+            accompaniment_condition = self.accompaniment_proj(mel_accomp)
+            condition = condition + accompaniment_condition
 
         if self.use_spk_id:
             condition += spk_embed

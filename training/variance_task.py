@@ -67,6 +67,8 @@ class VarianceDataset(BaseDataset):
             batch['voicing'] = utils.collate_nd([s['voicing'] for s in samples], 0)
         if hparams['predict_tension']:
             batch['tension'] = utils.collate_nd([s['tension'] for s in samples], 0)
+        if hparams['use_accompaniment']:
+            batch['mel_accomp'] = utils.collate_nd([s['mel_accomp'] for s in samples], 0)
 
         return batch
 
@@ -181,6 +183,8 @@ class VarianceTask(BaseTask):
         voicing = sample.get('voicing')  # [B, T_s]
         tension = sample.get('tension')  # [B, T_s]
 
+        mel_accomp = sample.get('mel_accomp') # [B, T_s, bins]
+
         pitch_retake = variance_retake = None
         if (self.predict_pitch or self.predict_variances) and not infer:
             # randomly select continuous retaking regions
@@ -203,6 +207,7 @@ class VarianceTask(BaseTask):
             note_dur=note_dur, note_glide=note_glide, mel2note=mel2note,
             base_pitch=base_pitch, pitch=pitch,
             energy=energy, breathiness=breathiness, voicing=voicing, tension=tension,
+            mel_accomp=mel_accomp,
             pitch_retake=pitch_retake, variance_retake=variance_retake,
             spk_id=spk_ids, infer=infer
         )
