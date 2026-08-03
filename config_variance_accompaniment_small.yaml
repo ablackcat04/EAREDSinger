@@ -286,6 +286,13 @@ accompaniment_mel_hop_size: 512
 accompaniment_mel_win_size: 2048
 accompaniment_mel_fft_size: 2048
 
+predict_dur: true
+predict_pitch: true
+predict_energy: false
+predict_breathiness: true
+predict_voicing: true
+predict_tension: true
+
 use_key_shift_embed: true
 use_speed_embed: true
 
