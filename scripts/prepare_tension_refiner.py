@@ -55,15 +55,40 @@ def _move_to_device(value, device: torch.device):
     return value
 
 
-def _downsample_mel(mel: np.ndarray, factor: int) -> np.ndarray:
-    if factor <= 0:
-        raise ValueError("refiner_downsample_factor must be positive.")
-    if mel.ndim != 2 or mel.shape[0] == 0:
-        raise ValueError(f"Expected a non-empty mel [T, M], received {mel.shape}.")
-    padded_length = ((mel.shape[0] + factor - 1) // factor) * factor
-    if padded_length != mel.shape[0]:
-        mel = np.pad(mel, ((0, padded_length - mel.shape[0]), (0, 0)), mode="edge")
-    return mel.reshape(-1, factor, mel.shape[1]).mean(axis=1).astype(np.float32)
+class MelNormalizationStats:
+    """Accumulate fixed training-set statistics without retaining all mels."""
+
+    def __init__(self, mel_bins: int):
+        self.count = 0
+        self.sum = np.zeros(mel_bins, dtype=np.float64)
+        self.sum_square = np.zeros(mel_bins, dtype=np.float64)
+        self.level_sum = 0.0
+        self.level_sum_square = 0.0
+
+    def update(self, mel: np.ndarray) -> None:
+        if mel.ndim != 2 or mel.shape[0] == 0:
+            raise ValueError(f"Expected a non-empty mel [T, M], received {mel.shape}.")
+        mel64 = mel.astype(np.float64)
+        level = np.logaddexp.reduce(mel64, axis=1) - np.log(mel.shape[1])
+        self.count += len(mel)
+        self.sum += mel64.sum(axis=0)
+        self.sum_square += np.square(mel64).sum(axis=0)
+        self.level_sum += float(level.sum())
+        self.level_sum_square += float(np.square(level).sum())
+
+    def finalize(self) -> dict:
+        if self.count == 0:
+            raise ValueError("Cannot compute mel normalization from an empty training set.")
+        mel_mean = self.sum / self.count
+        mel_variance = self.sum_square / self.count - np.square(mel_mean)
+        level_mean = self.level_sum / self.count
+        level_variance = self.level_sum_square / self.count - level_mean**2
+        return {
+            "mel_mean": mel_mean.astype(np.float32),
+            "mel_std": np.sqrt(np.maximum(mel_variance, 1e-8)).astype(np.float32),
+            "mel_level_mean": np.float32(level_mean),
+            "mel_level_std": np.float32(np.sqrt(max(level_variance, 1e-8))),
+        }
 
 
 def _predict_base_tension(model: DiffSingerVariance, sample: dict) -> torch.Tensor:
@@ -108,10 +133,10 @@ def _build_prefix(
     output_dir: Path,
     accompaniment_dir: Path,
     textgrid_dir: Path,
-    downsample_factor: int,
     sentence_tier: str,
     overwrite: bool,
-) -> None:
+    normalization_stats: dict | None = None,
+) -> dict:
     output_data = output_dir / f"{prefix}.data"
     output_meta = output_dir / f"{prefix}.meta"
     existing = [path for path in (output_data, output_meta) if path.exists()]
@@ -145,7 +170,12 @@ def _build_prefix(
         )
 
     timestep = hparams["hop_size"] / hparams["audio_sample_rate"]
-    metadata = {"names": [], "lengths": [], "mel_accomp_coarse": []}
+    metadata = {"names": [], "lengths": [], "mel_accomp": []}
+    mel_stats = (
+        MelNormalizationStats(hparams["accompaniment_num_mel_bins"])
+        if normalization_stats is None
+        else None
+    )
     builder = IndexedDatasetBuilder(output_dir, prefix=prefix)
     try:
         for song_id in sorted(records_by_song):
@@ -170,7 +200,8 @@ def _build_prefix(
                 fmin=hparams["accompaniment_mel_fmin"],
                 fmax=hparams["accompaniment_mel_fmax"],
             )
-            coarse_mel = _downsample_mel(full_mel, downsample_factor)
+            if mel_stats is not None:
+                mel_stats.update(full_mel)
             full_length = int(full_mel.shape[0])
             base_full = np.zeros(full_length, dtype=np.float32)
             target_full = np.zeros(full_length, dtype=np.float32)
@@ -206,7 +237,9 @@ def _build_prefix(
             builder.add_item(
                 {
                     "song_id": int(song_id) if song_id.isdigit() else song_id.encode("utf-8"),
-                    "mel_accomp_coarse": coarse_mel,
+                    # Float16 cuts song-level dataset size in half; the task
+                    # converts it back to float32 before the learned encoder.
+                    "mel_accomp": full_mel.astype(np.float16),
                     "base_tension": base_full,
                     "target_tension": target_full,
                     "curve_mask": curve_mask_full,
@@ -215,13 +248,17 @@ def _build_prefix(
             )
             metadata["names"].append(song_id)
             metadata["lengths"].append(full_length)
-            metadata["mel_accomp_coarse"].append(len(coarse_mel))
+            metadata["mel_accomp"].append(full_length)
     finally:
         builder.finalize()
 
+    if normalization_stats is None:
+        normalization_stats = mel_stats.finalize()
+    metadata.update(normalization_stats)
     with output_meta.open("wb") as file:
         pickle.dump(metadata, file)
     print(f"| Wrote {len(metadata['names'])} full-song {prefix} examples to {output_dir}.")
+    return normalization_stats
 
 
 def main() -> None:
@@ -262,19 +299,29 @@ def main() -> None:
     accompaniment_dir = Path(hparams["refiner_accompaniment_dir"])
     textgrid_dir = Path(hparams["refiner_textgrid_dir"])
     with torch.inference_mode():
-        for prefix, dataset in datasets.items():
-            _build_prefix(
-                prefix,
-                dataset,
-                model,
-                device,
-                output_dir,
-                accompaniment_dir,
-                textgrid_dir,
-                hparams["refiner_downsample_factor"],
-                hparams["refiner_sentence_tier"],
-                args.overwrite,
-            )
+        normalization_stats = _build_prefix(
+            "train",
+            datasets["train"],
+            model,
+            device,
+            output_dir,
+            accompaniment_dir,
+            textgrid_dir,
+            hparams["refiner_sentence_tier"],
+            args.overwrite,
+        )
+        _build_prefix(
+            "valid",
+            datasets["valid"],
+            model,
+            device,
+            output_dir,
+            accompaniment_dir,
+            textgrid_dir,
+            hparams["refiner_sentence_tier"],
+            args.overwrite,
+            normalization_stats=normalization_stats,
+        )
     _copy_training_payload(source_binary_dir, output_dir)
 
 

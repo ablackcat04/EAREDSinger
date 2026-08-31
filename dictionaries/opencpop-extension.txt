@@ -55,7 +55,7 @@ chei	ch ei
 chen	ch en
 cheng	ch eng
 cher	ch er
-chi	ch ir
+chi	ch i
 chong	ch ong
 chou	ch ou
 chu	ch u
@@ -68,7 +68,7 @@ chun	ch un
 chuo	ch uo
 chv	ch v
 chyi	ch i
-ci	c i0
+ci	c i
 cong	c ong
 cou	c ou
 cu	c u
@@ -416,7 +416,7 @@ rei	r ei
 ren	r en
 reng	r eng
 rer	r er
-ri	r ir
+ri	r i
 rong	r ong
 rou	r ou
 ru	r u
@@ -449,7 +449,7 @@ shei	sh ei
 shen	sh en
 sheng	sh eng
 sher	sh er
-shi	sh ir
+shi	sh i
 shong	sh ong
 shou	sh ou
 shu	sh u
@@ -462,7 +462,7 @@ shun	sh un
 shuo	sh uo
 shv	sh v
 shyi	sh i
-si	s i0
+si	s i
 song	s ong
 sou	s ou
 su	s u
@@ -537,10 +537,10 @@ xue	x ve
 xun	x vn
 ya	y a
 yai	y ai
-yan	y En
+yan	y en
 yang	y ang
 yao	y ao
-ye	y E
+ye	y e
 yei	y ei
 yi	y i
 yin	y in
@@ -573,7 +573,7 @@ zhei	zh ei
 zhen	zh en
 zheng	zh eng
 zher	zh er
-zhi	zh ir
+zhi	zh i
 zhong	zh ong
 zhou	zh ou
 zhu	zh u
@@ -586,7 +586,7 @@ zhun	zh un
 zhuo	zh uo
 zhv	zh v
 zhyi	zh i
-zi	z i0
+zi	z i
 zong	z ong
 zou	z ou
 zu	z u

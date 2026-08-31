@@ -147,14 +147,6 @@ def _assemble_base_tension(
     return base_tension, curve_mask, layouts
 
 
-def _downsample_mel(mel: np.ndarray, factor: int) -> np.ndarray:
-    if factor <= 0 or mel.ndim != 2 or len(mel) == 0:
-        raise ValueError("Expected a non-empty mel and a positive downsample factor.")
-    padded_length = ((len(mel) + factor - 1) // factor) * factor
-    if padded_length != len(mel):
-        mel = np.pad(mel, ((0, padded_length - len(mel)), (0, 0)), mode="edge")
-    return mel.reshape(-1, factor, mel.shape[1]).mean(axis=1).astype(np.float32)
-
 
 def _format_curve(curve: np.ndarray) -> str:
     return " ".join(f"{float(value):.6f}" for value in curve)
@@ -186,25 +178,32 @@ def main() -> None:
     base_tension, curve_mask, layouts = _assemble_base_tension(
         segments, len(mel), timestep
     )
-    coarse_mel = _downsample_mel(mel, hparams["refiner_downsample_factor"])
-
     device = torch.device(args.device)
     model = AccompanimentTensionRefiner(
         mel_bins=hparams["accompaniment_num_mel_bins"],
         hidden_size=hparams["refiner_hidden_size"],
         num_layers=hparams["refiner_num_layers"],
-        kernel_size=hparams["refiner_kernel_size"],
+        num_heads=hparams["refiner_num_heads"],
+        ffn_size=hparams["refiner_ffn_size"],
+        downsample_factor=hparams["refiner_downsample_factor"],
+        num_local_layers=hparams["refiner_local_layers"],
+        local_kernel_size=hparams["refiner_local_kernel_size"],
         dropout=hparams["refiner_dropout"],
         initial_gate=hparams["refiner_initial_gate"],
+        mel_timestep=(
+            hparams["accompaniment_mel_hop_size"] / hparams["audio_sample_rate"]
+        ),
+        time_scale_seconds=hparams["refiner_time_scale_seconds"],
         tension_min=hparams["tension_logit_min"],
         tension_max=hparams["tension_logit_max"],
     ).to(device).eval()
     utils.load_ckpt(model, args.refiner_ckpt, device=device, strict=True)
     with torch.inference_mode():
         refined, delta, _ = model(
-            torch.from_numpy(coarse_mel)[None].to(device),
+            torch.from_numpy(mel)[None].to(device),
             torch.from_numpy(base_tension)[None].to(device),
             torch.from_numpy(curve_mask)[None].to(device),
+            torch.tensor([len(mel)], device=device),
         )
     refined_full = refined[0].cpu().numpy()
     delta_full = delta[0].cpu().numpy()

@@ -14,14 +14,19 @@ refiner_textgrid_dir: 'C:/Users/wuru8/Desktop/diffsinger/opencpop/textgrids'
 refiner_sentence_tier: '句子'
 refiner_prediction_seed: 1234
 
-# The refiner sees one full song at 16x lower temporal resolution and predicts
-# an additive tension residual. Its output layer starts at zero (identity).
+# Full-resolution mel first passes through a local convolutional encoder. Learned
+# strided layers then create 16x-coarser tokens for non-causal whole-song attention.
+# The output is a coarse additive residual interpolated back to the DS timestep.
 refiner_downsample_factor: 16
 refiner_hidden_size: 256
-refiner_num_layers: 8
-refiner_kernel_size: 5
+refiner_local_layers: 2
+refiner_local_kernel_size: 5
+refiner_num_layers: 4
+refiner_num_heads: 4
+refiner_ffn_size: 1024
 refiner_dropout: 0.1
 refiner_initial_gate: 0.1
+refiner_time_scale_seconds: 300.0
 
 lambda_refiner_delta: 0.001
 lambda_refiner_smooth: 0.01
@@ -30,7 +35,7 @@ optimizer_args:
   lr: 0.0002
 lr_scheduler_args:
   scheduler_cls: torch.optim.lr_scheduler.StepLR
-  step_size: 20000
+  step_size: 5000
   gamma: 0.75
 
 # Each example is a complete song. Keep batch size at one unless memory has
@@ -39,7 +44,7 @@ max_batch_frames: 40000
 max_batch_size: 1
 max_val_batch_frames: 40000
 max_val_batch_size: 1
-max_updates: 80000
-val_check_interval: 500
+max_updates: 10000
+val_check_interval: 250
 num_valid_plots: 3
 ds_workers: 1
