@@ -23,7 +23,9 @@ The report compares EAREDSinger with an otherwise comparable variance-model base
 | Voicing | 0.4409 ± 0.0097 | **0.5510 ± 0.0067** |
 | Tension | 0.6292 ± 0.0048 | **0.6389 ± 0.0039** |
 
-The seven held-out songs contain no training segments. R² was calculated over voiced, non-padding frames. For breathiness, voicing, and tension, both models received ground-truth pitch, so these numbers measure expression prediction given pitch. They do not establish end-to-end synthesis quality or listener preference. The report also describes a case study in which changing the accompaniment while keeping the score and lyrics fixed changes the predicted expression curves; a formal listening test is still pending.
+The seven held-out songs contain no training segments. R² was calculated over voiced, non-padding frames. For breathiness, voicing, and tension, both models received ground-truth pitch, so these numbers measure expression prediction given pitch. They do not establish end-to-end synthesis quality or listener preference. A formal listening test is still pending.
+
+Demo: please refer to this [google slide](https://docs.google.com/presentation/d/16I35a1NNsat5lupPPBS8Nibf2UndPAedrA_HAYDCIMI/edit?usp=sharing).
 
 ## Getting started
 
